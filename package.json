@@ -1,0 +1,27 @@
+{
+  "bugs": {
+    "email": "brett19@gmail.com"
+  },
+  "description": "The un-official node.js Client Library. Written in pure Javascript for ease of use and debugging.",
+  "engines": {
+    "node": ">=0.8.8"
+  },
+  "keywords": [
+    "couchbase",
+    "libcouchbase",
+    "memcached",
+    "nosql",
+    "json",
+    "document"
+  ],
+  "main": "./lib/couchbase",
+  "license": "Apache2",
+  "name": "couchbasejs",
+  "dependencies": {
+    "crc": "~0.2.1"
+  },
+  "devDependencies": {
+
+  },
+  "version": "0.0.1"
+}
