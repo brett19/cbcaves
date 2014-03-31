@@ -24,9 +24,9 @@ function Node(parent, callback) {
 
   this.host = '127.0.0.1';
 
-  this.capiSvc = new CapiService(this.parent);
-  this.mgmtSvc = new MgmtService(this.parent);
-  this.memdSvc = new MemdService(this.parent);
+  this.capiSvc = new CapiService(this.parent, this);
+  this.mgmtSvc = new MgmtService(this.parent, this);
+  this.memdSvc = new MemdService(this.parent, this);
 
   var self = this;
 

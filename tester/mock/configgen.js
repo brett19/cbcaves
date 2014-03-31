@@ -20,8 +20,8 @@ ConfigGenerator.prototype._generateVbMap = function() {
     'vBucketMap': []
   };
 
-  for (var nId = 0; nId < this.nodes.length; ++nId) {
-    var node = this.nodes[nId];
+  for (var nId = 0; nId < this.cluster.nodes.length; ++nId) {
+    var node = this.cluster.nodes[nId];
     config.serverList.push('127.0.0.1:' + node.memdSvc.port);
     config.sslServerList.push('127.0.0.1:' + node.memdSvc.sslPort);
   }
@@ -31,8 +31,8 @@ ConfigGenerator.prototype._generateVbMap = function() {
 
     var vbEntry = [];
     for (var repId = 0; repId < vb.length; ++repId) {
-      var vbNode = this.nodeById(vb[repId]);
-      vbEntry.push(this.nodes.indexOf(vbNode));
+      var vbNode = this.cluster.nodeById(vb[repId]);
+      vbEntry.push(this.cluster.nodes.indexOf(vbNode));
     }
     config.vBucketMap.push(vbEntry);
   }
@@ -40,10 +40,25 @@ ConfigGenerator.prototype._generateVbMap = function() {
   return config;
 };
 
+// Generate Node config with all non-client stuff missing.
+ConfigGenerator.prototype._generateNodeConfigNP = function(node) {
+  var config = {
+    'couchApiBaseHTTPS': 'https://' + node.host + ':' + node.capiSvc.sslPort + '/' + this.bucket.name,
+    'couchApiBase': 'http://' + node.host + ':' + node.capiSvc.port + '/' + this.bucket.name,
+    'hostname': node.host + ':' + node.mgmtSvc.port,
+    'ports': {
+      'httpsMgmt': node.mgmtSvc.sslPort,
+      'sslDirect': node.memdSvc.sslPort,
+      'direct': node.memdSvc.port
+    }
+  };
+  return config;
+};
+
 ConfigGenerator.prototype._generateNodeConfig = function(node) {
   var config = {
-    'couchbaseApiBaseHTTPS': 'https://' + node.host + ':' + node.capiSvc.sslPort + '/' + this.bucket.name,
-    'couchbaseApiBase': 'http://' + node.host + ':' + node.capiSvc.port + '/' + this.bucket.name,
+    'couchApiBaseHTTPS': 'https://' + node.host + ':' + node.capiSvc.sslPort + '/' + this.bucket.name,
+    'couchApiBase': 'http://' + node.host + ':' + node.capiSvc.port + '/' + this.bucket.name,
     'systemStats': {
       'cpu_utilization_rate': 0,
       'swap_total': 2048 * 1024 * 1024,
@@ -87,6 +102,28 @@ ConfigGenerator.prototype._generateNodeConfig = function(node) {
       'direct': node.memdSvc.port
     }
   };
+  return config;
+};
+
+ConfigGenerator.prototype.generateConfigNP = function() {
+  var config = {
+    'name': this.bucket.name,
+    'bucketType': 'membase',
+    'authType': 'sasl',
+    'uri': this._path('/buckets/:name?bucket_uuid=:uuid'),
+    'streamingUri': this._path('/bucketsStreaming/:name?bucket_uuid=:uuid'),
+    'localRandomKeyUri': this._path('/buckets/:name/localRandomKey'),
+    'nodes': [],
+    'ddocs': {
+      'uri': this._path('/buckets/:name/ddocs')
+    },
+    'nodeLocator': 'vbucket',
+    'uuid': this.bucket.uuid,
+    'vBucketServerMap': this._generateVbMap()
+  };
+  for (var i = 0; i < this.cluster.nodes.length; ++i) {
+    config.nodes.push(this._generateNodeConfigNP(this.cluster.nodes[i]));
+  }
   return config;
 };
 

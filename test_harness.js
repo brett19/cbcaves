@@ -4,6 +4,7 @@ var couchbase = require('./lib/couchbase.js'),
   fs = require('fs'),
   util = require('util');
 var assert = require('assert');
+var MockCluster = require('./tester/mock/cluster');
 
 var config;
 var configFilename = 'config.json';
@@ -50,7 +51,17 @@ function Harness(callback) {
 }
 
 Harness.prototype.newClient = function(callback) {
-  return new couchbase.Connection(config, callback);
+  var cli = new couchbase.Connection({delayed: true}, callback);
+  var testCluster = new MockCluster();
+  testCluster.prepare({}, function() {
+    console.log('mock cluster online');
+    var hosts = testCluster.bootstrapList('cccp');
+    cli._setup({
+      bucket: 'default',
+      uri: hosts
+    });
+  });
+  return cli;
 };
 
 Harness.prototype.genKey = function(prefix) {

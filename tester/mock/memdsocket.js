@@ -5,6 +5,7 @@ var net = require('net');
 var memdproto = require('./memdproto');
 
 var EventEmitter = require('events').EventEmitter;
+var Long = require('long');
 var Cas = require('./cas');
 
 
@@ -25,6 +26,7 @@ for sockets created via a net.Server.
 function MemdSocket$() {
   this.dataBuf = null;
   this.on('data', this._handleData);
+  this.on('error', this._handleError);
 }
 function MemdSocket(options) {
   net.Socket.call(this, options);
@@ -45,6 +47,10 @@ MemdSocket.upgradeSocket = function(socket) {
   MemdSocket$.call(socket);
 
   return socket;
+};
+
+MemdSocket.prototype._handleError = function(e) {
+  console.warn('MEMD SOCK ERROR', e);
 };
 
 function memdPacket(magic, op, seqNo, vbIdOrStatus, dataType, cas, extLen, key, value) {
@@ -140,6 +146,43 @@ MemdSocket.prototype.writeGetResp =
   this.write(buf);
 };
 
+MemdSocket.prototype.writeObserveResp =
+  function(req, status, ttr, ttp, value) {
+    var fakeCas = new Cas();
+    fakeCas.hi = ttp;
+    fakeCas.lo = ttr;
+
+    var buf = memdRespPacket(
+      req.op,
+      req.seqNo,
+      status,
+      0,
+      fakeCas,
+      0,
+      null,
+      value
+    );
+    this.write(buf);
+  };
+
+MemdSocket.prototype.writeArithmeticResp = function(req, status, cas, value) {
+  var valueBuf = new Buffer(8);
+  valueBuf.fastWrite(4, value.getLowBitsUnsigned(), 4);
+  valueBuf.fastWrite(0, value.getHighBitsUnsigned(), 4);
+
+  var buf = memdRespPacket(
+    req.op,
+    req.seqNo,
+    status,
+    0,
+    cas,
+    0,
+    null,
+    valueBuf
+  );
+  this.write(buf);
+};
+
 
 MemdSocket.prototype.writeErrorResp = function(req, error) {
   this.writeSResp(req, error);
@@ -171,9 +214,9 @@ function parseMemdPacket(data) {
   var keyLen = data.readUInt16BE(2);
   var extLen = data.readUInt8(4);
   packet.dataType = data.readUInt8(5);
-  if (packet.magic === memdproto.cmd.REQUEST) {
+  if (packet.magic === memdproto.magic.REQUEST) {
     packet.vbId = data.readUInt16BE(6);
-  } else if (packet.magic === memdproto.cmd.RESPONSE) {
+  } else if (packet.magic === memdproto.magic.RESPONSE) {
     packet.status = data.readUInt16BE(6);
   }
   packet.seqNo = data.readUInt32BE(12);
@@ -190,35 +233,102 @@ function parseMemdPacket(data) {
     packet.value = data.slice(24+extLen+keyLen);
   }
 
-  function throwUnexpectedExtras() {
-    throw new MemdProtocolError('unexpected extras', data);
+  function throwUnexpectedPacket() {
+    throw new MemdProtocolError('unexpected packet or extras', data);
   }
 
   if (packet.magic === memdproto.magic.REQUEST) {
-    if (packet.op === memdproto.cmd.SET) {
+    if (packet.op === memdproto.cmd.SET ||
+        packet.op === memdproto.cmd.SETQ ||
+        packet.op === memdproto.cmd.ADD ||
+        packet.op === memdproto.cmd.ADDQ ||
+        packet.op === memdproto.cmd.REPLACE ||
+        packet.op === memdproto.cmd.REPLACEQ) {
       if (extLen === 8) {
         packet.flags = data.readUInt32BE(24);
         packet.expiry = data.readUInt32BE(28);
       } else {
-        throwUnexpectedExtras();
+        throwUnexpectedPacket();
+      }
+    } else if (packet.op === memdproto.cmd.INCREMENT ||
+        packet.op === memdproto.cmd.INCREMENTQ ||
+        packet.op === memdproto.cmd.DECREMENT ||
+        packet.op === memdproto.cmd.DECREMENTQ) {
+      if (extLen === 20) {
+        packet.delta = Long.fromBits(
+          data.readUInt32BE(28),
+          data.readUInt32BE(24)
+        );
+        packet.initial = Long.fromBits(
+          data.readUInt32BE(36),
+          data.readUInt32BE(32)
+        );
+        packet.expiry = data.readUInt32BE(40);
+      } else {
+        throwUnexpectedPacket();
+      }
+    } else if (packet.op === memdproto.cmd.VERBOSITY) {
+      if (extLen === 4) {
+        packet.verbosity = data.readUInt32BE(24);
+      } else {
+        throwUnexpectedPacket();
+      }
+    } else if (packet.op === memdproto.cmd.TOUCH ||
+        packet.op === memdproto.cmd.GAT) {
+      if (extLen === 4) {
+        packet.expiry = data.readUInt32BE(24);
+      } else {
+        throwUnexpectedPacket();
+      }
+    } else if (packet.op === memdproto.cmd.GET_LOCKED) {
+      if (extLen === 4) {
+        packet.lockTime = data.readUInt32BE(24);
+      } else {
+        throwUnexpectedPacket();
+      }
+    } else if (packet.op === memdproto.cmd.GET ||
+        packet.op === memdproto.cmd.GETQ ||
+        packet.op === memdproto.cmd.GETK ||
+        packet.op === memdproto.cmd.GETKQ ||
+        packet.op === memdproto.cmd.DELETE ||
+        packet.op === memdproto.cmd.DELETEQ ||
+        packet.op === memdproto.cmd.QUIT ||
+        packet.op === memdproto.cmd.QUITQ ||
+        packet.op === memdproto.cmd.FLUSH ||
+        packet.op === memdproto.cmd.FLUSHQ ||
+        packet.op === memdproto.cmd.NOOP ||
+        packet.op === memdproto.cmd.VERSION ||
+        packet.op === memdproto.cmd.APPEND ||
+        packet.op === memdproto.cmd.APPENDQ ||
+        packet.op === memdproto.cmd.PREPEND ||
+        packet.op === memdproto.cmd.PREPENDQ ||
+        packet.op === memdproto.cmd.STAT ||
+        packet.op === memdproto.cmd.SASL_LIST_MECHS ||
+        packet.op === memdproto.cmd.SASL_AUTH ||
+        packet.op === memdproto.cmd.SASL_STEP ||
+        packet.op === memdproto.cmd.GET_CLUSTER_CONFIG ||
+        packet.op === memdproto.cmd.UNLOCK_KEY ||
+        packet.op === memdproto.cmd.OBSERVE) {
+      if (extLen !== 0) {
+        throwUnexpectedPacket();
       }
     } else {
-      if (extLen !== 0) {
-        throwUnexpectedExtras();
-      }
+      throwUnexpectedPacket();
     }
   } else if (packet.magic === memdproto.magic.RESPONSE) {
     if (packet.op === memdproto.cmd.GET) {
       if (extLen === 4) {
         packet.flags = data.readUInt32BE(24);
       } else {
-        throwUnexpectedExtras();
+        throwUnexpectedPacket();
       }
     } else {
       if (extLen !== 0) {
-        throwUnexpectedExtras();
+        throwUnexpectedPacket();
       }
     }
+  } else {
+    throwUnexpectedPacket();
   }
 
   return packet;
@@ -239,8 +349,13 @@ MemdSocket.prototype._handleData = function(data) {
       var packetLen = 24 + bodyLen;
       if (this.dataBuf.length >= offset + packetLen) {
         var packetData = this.dataBuf.slice(offset, offset + packetLen);
-        var packet = parseMemdPacket(packetData);
-        this.emit('packet', packet);
+        try {
+          var packet = parseMemdPacket(packetData);
+          this.emit('packet', packet);
+        } catch (e) {
+          console.warn('memd packet error', e);
+          console.warn(e.stack);
+        }
 
         offset += packetLen;
       } else {

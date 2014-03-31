@@ -2,8 +2,9 @@
 
 var utils = require('./utils');
 
-function BaseService(parent) {
+function BaseService(parent, parentNode) {
   this.parent = parent;
+  this.parentNode = parentNode;
 
   this.server = null;
   this.port = 0;

@@ -21,6 +21,10 @@ module.exports.waitForAllCallback = function(callback) {
   };
 };
 
+module.exports.unixTimestamp = function() {
+  return (new Date()).getTime();
+};
+
 Buffer.prototype.fastWrite = function(off, val, bytes) {
   for (var i = 0; i < bytes; ++i) {
     this[off+bytes-i-1] = val >> (i * 8);

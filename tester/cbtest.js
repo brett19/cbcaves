@@ -1,5 +1,6 @@
 "use strict";
 
+var domain = require('domain');
 var annotations = require('annotations');
 
 var MockCluster = require('./mock/cluster');
@@ -42,7 +43,16 @@ function parseTests(path, callback) {
 function runTest(fn, callback) {
   var mockServer = new MockCluster();
   mockServer.prepare(function() {
-    fn(mockServer, callback);
+    var testDomain = domain.create();
+
+    testDomain.run(function() {
+      fn(mockServer, callback);
+    });
+
+    testDomain.on("error", function(error) {
+      console.error('TEST ERROR');
+      console.error(error.stack);
+    });
   });
   mockServer.destroy();
 }

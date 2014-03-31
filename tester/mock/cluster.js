@@ -7,6 +7,7 @@ var utils = require('./utils');
 var EventEmitter = require('events').EventEmitter;
 var MockNode = require('./node');
 var MockBucket = require('./bucket');
+var ConfigGenerator = require('./configgen');
 
 var MOCK_SSL_KEY = fs.readFileSync(__dirname + '/local-ssl-key.pem');
 var MOCK_SSL_CERT = fs.readFileSync(__dirname + '/local-ssl-cert.pem');
@@ -81,73 +82,8 @@ Cluster.prototype._configChanged = function() {
   this.emit('configChanged');
 };
 
-Cluster.prototype._generateBucketNodeConfig = function(bucket, node) {
-  var config = {
-    couchbaseApiBaseHTTPS: 'http://127.0.0.1:' + node.capiSvc.sslPort + '/' + bucket.name,
-    couchbaseApiBase: 'http://127.0.0.1:' + node.capiSvc.port + '/' + bucket.name,
-    hostname: '127.0.0.1:' + node.mgmtSvc.port,
-    ports: {
-      httpsMgmt: node.mgmtSvc.sslPort,
-      httpsCAPI: node.capiSvc.sslPort,
-      sslDirect: node.memdSvc.sslPort,
-      direct: node.memdSvc.port
-    }
-  };
-  return config;
-};
-
-Cluster.prototype._generateBucketVbMap = function(bucket) {
-  var config = {
-    hashAlgorithm: 'CRC',
-    numReplicas: bucket.numReplicas,
-    serverList: [],
-    sslServerList: [],
-    vBucketMap: []
-  };
-
-  for (var nId = 0; nId < this.nodes.length; ++nId) {
-    var node = this.nodes[nId];
-    config.serverList.push('127.0.0.1:' + node.memdSvc.port);
-    config.sslServerList.push('127.0.0.1:' + node.memdSvc.sslPort);
-  }
-
-  for (var vbId = 0; vbId < bucket.vbMap.length; ++vbId) {
-    var vb = bucket.vbMap[vbId];
-
-    var vbEntry = [];
-    for (var repId = 0; repId < vb.length; ++repId) {
-      var vbNode = this.nodeById(vb[repId]);
-      vbEntry.push(this.nodes.indexOf(vbNode));
-    }
-    config.vBucketMap.push(vbEntry);
-  }
-
-  return config;
-};
-
 Cluster.prototype._generateBucketConfig = function(bucket) {
-  var config = {
-    name: bucket.name,
-    bucketType: 'membase',
-    authType: 'sasl',
-    saslPassword: '',
-    uri: '/pools/default/buckets/' + bucket.name + '?bucket_uuid=' + bucket.uuid,
-    streamingUri: '/pools/default/bucketsStreaming/' + bucket.name + '?bucket_uuid=' + bucket.uuid,
-    nodes: [],
-    stats: {},
-    ddocs: {
-      uri: '/pools/default/buckets/' + bucket.name + '/ddocs'
-    },
-    nodeLocator: 'vbucket',
-    uuid: bucket.uuid,
-    vBucketServerMap: this._generateBucketVbMap(bucket),
-    bucketCapabilitiesVer: '',
-    bucketCapabilities: [ 'touch', 'couchapi' ]
-  };
-  for (var i = 0; i < this.nodes.length; ++i) {
-    config.nodes.push(this._generateBucketNodeConfig(bucket, this.nodes[i]));
-  }
-  return config;
+  return ConfigGenerator.generateConfig(this, bucket);
 };
 
 Cluster.prototype.bootstrapList = function(mode) {

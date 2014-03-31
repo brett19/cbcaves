@@ -4,8 +4,8 @@ var util = require('util');
 
 var HttpService = require('./httpsvc');
 
-function MgmtService(parent) {
-  HttpService.call(this, parent);
+function MgmtService(parent, parentNode) {
+  HttpService.call(this, parent, parentNode);
 
   this.configStreams = [];
 
@@ -77,8 +77,7 @@ MgmtService.prototype._handleBucketStreaming = function(req, res, next) {
 
   var config = this.parent._generateBucketConfig(bucket);
   var configStr = JSON.stringify(config);
-  res.write(configStr);
-  res.write('\n\n\n\n');
+  res.write(configStr + '\n\n\n\n');
 
   this._addConfigListener(bucket, res);
 };

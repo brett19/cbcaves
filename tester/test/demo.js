@@ -1,5 +1,7 @@
 "use strict";
 
+var assert = require('assert');
+
 var CbConn = require('../../lib/couchbase').Connection;
 
 function CbClient(options) {
@@ -10,38 +12,118 @@ CbClient.prototype.set = function(key, value, options, callback) {
     callback(err, res);
   });
 };
+CbClient.prototype.add = function(key, value, options, callback) {
+  this.me.add(key, value, options, function(err, res) {
+    callback(err, res);
+  });
+};
+CbClient.prototype.replace = function(key, value, options, callback) {
+  this.me.replace(key, value, options, function(err, res) {
+    callback(err, res);
+  });
+};
 CbClient.prototype.get = function(key, options, callback) {
   this.me.get(key, options, function(err, res) {
     callback(err, res);
   });
 };
 
+function Harness() {
+  this.keySerial = 0;
+  this.bkeySerial = 0;
+}
+
+Harness.prototype.genKey = function(prefix) {
+  if (!prefix) {
+    prefix = "generic";
+  }
+
+  var ret = "TEST-" + prefix + this.keySerial;
+  this.keySerial++;
+  return ret;
+};
+
+Harness.prototype.genBKey = function(len) {
+  var key = new Buffer(len);
+  var rngVal = this.bkeySerial;
+  for (var i = 0; i < len; ++i) {
+    rngVal = 1103515245 * rngVal + 12345;
+    key[i] = Math.floor(rngVal % 256);
+  }
+  this.bkeySerial++;
+  return key;
+};
+
+Harness.prototype.okCallback = function(target) {
+  // Get the stack
+  var origStack = new Error().stack;
+
+  return function(err, result) {
+    if (err) {
+      assert(!err, 'Received unexpected error:' + err.stack + origStack);
+    }
+    if (result) {
+      assert(result, 'Missing expected result:' + origStack);
+    }
+    target(result);
+  };
+};
+
+var H = new Harness();
+
+
+
 /**
- * @test some test
- * @needs mock
+ * @test basic add tests
  */
-exports.someTest = function(srv, done) {
-  var testBucket = srv.bucketByName('default');
-
-  var bsHosts = srv.bootstrapList('http');
-  var testClient = new CbClient({
-    hosts: bsHosts
+exports.basicAdd = function(srv, done) {
+  var httpHosts = srv.bootstrapList('http');
+  var cli = new CbClient({
+    hosts: httpHosts
   });
 
-  testClient.set('testkeya', 'franklyn', function(err, res) {
-    console.log('tst.set', err, res);
+  var testKey = H.genKey('add');
 
-    var vbId = testBucket.keyToVbId('testkeya');
-    //testBucket.changeVBucketServer(vbId,  true);
+  cli.add(testKey, 'bar', H.okCallback(function(res) {
+    done();
+  }));
+};
 
-    //testBucket.loseVb(vbId, 0);
-    //testBucket.loseVb(vbId, 1);
+/**
+ * @test secondary add tests
+ */
+exports.addWorks = function(srv, done) {
+  var httpHosts = srv.bootstrapList('http');
+  var cli = new CbClient({
+    hosts: httpHosts
+  });
 
-    testClient.get('testkeya', function(err, res) {
-      console.log('tst.get', err, res);
+  var testKey = H.genKey('add');
+
+  cli.add(testKey, 'bar', H.okCallback(function(res) {
+    cli.add(testKey, 'baz', function(err, res) {
+      assert(err, 'Should fail to add object second time.');
+      done();
     });
+  }));
+};
 
+/**
+ * @test binary key add tests
+ * @needs binary_key
+ */
+exports.bkeyAdd = function(srv, done) {
+  var httpHosts = srv.bootstrapList('http');
+  var cli = new CbClient({
+    hosts: httpHosts
   });
 
-  console.log('some test executed');
+  var testKey = H.genBKey(32);
+
+  cli.add(testKey, 'bar', H.okCallback(function(res) {
+    cli.add(testKey, 'baz', function(err, res) {
+      assert(err, 'Should fail to add object second time.');
+      done();
+    });
+  }));
 };

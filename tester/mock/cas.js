@@ -11,12 +11,13 @@ Cas.readFromBuffer = function(buf, off) {
   var cas = new Cas();
   cas.hi = buf.readUInt32BE(off+0);
   cas.lo = buf.readUInt32BE(off+4);
+  return cas;
 };
 
 Cas.writeToBuffer = function(buf, off, cas) {
   if (cas) {
     buf.fastWrite(off+0, cas.hi, 4);
-    buf.fastWrite(off+1, cas.lo, 4);
+    buf.fastWrite(off+4, cas.lo, 4);
   } else {
     buf.fastWrite(off+0, 0, 4);
     buf.fastWrite(off+4, 0, 4);

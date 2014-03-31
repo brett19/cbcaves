@@ -81,3 +81,10 @@ module.exports.status = {
   EBUSY: 0x85,
   ETMPFAIL: 0x86
 };
+
+module.exports.obsstate = {
+  NOT_PERSISTED: 0x00,
+  PERSISTED: 0x01,
+  NOT_FOUND: 0x80,
+  LOGICAL_DEL: 0x81
+};
