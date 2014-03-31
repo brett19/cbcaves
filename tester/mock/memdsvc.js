@@ -131,6 +131,13 @@ MemdService.prototype._lockTimeToTs = function(lockTime) {
   return (utils.unixTimestamp()/1000) + lockTime;
 };
 
+MemdService.prototype.disconnectAll = function() {
+  for (var i = 0; i < this.clients.length; ++i) {
+    var stream = this.clients[i];
+    stream.end();
+  }
+};
+
 MemdService.prototype._handleNewClient = function(sock, packetHandler) {
   var self = this;
 

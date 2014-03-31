@@ -41,6 +41,13 @@ MgmtService.prototype._writeConfigToStreamers = function() {
   }
 };
 
+MgmtService.prototype.disconnectAll = function() {
+  for (var i = 0; i < this.configStreams.length; ++i) {
+    var stream = this.configStreams[i];
+    stream.end();
+  }
+};
+
 MgmtService.prototype._setupRoutes = function(app) {
   app.get('/pools/:pool/buckets/:bucket', this._handleBucket.bind(this));
   app.get('/pools/:pool/bucketsStreaming/:bucket', this._handleBucketStreaming.bind(this));

@@ -78,8 +78,17 @@
   var HashedCRC32 = function(key) {
     var crc = 0xFFFFFFFF;
 
-    for (var i = 0; i < key.length; ++i)
-      crc = (crc >>> 8) ^ CRC32Tab[(crc ^ key.charCodeAt(i)) & 0xFF];
+    if (typeof(key) === 'string') {
+      for (var i = 0; i < key.length; ++i) {
+        crc = (crc >>> 8) ^ CRC32Tab[(crc ^ key.charCodeAt(i)) & 0xFF];
+      }
+    } else if (Buffer.isBuffer(key)) {
+      for (var i = 0; i < key.length; ++i) {
+        crc = (crc >>> 8) ^ CRC32Tab[(crc ^ key[i]) & 0xFF];
+      }
+    } else {
+      throw new Error('invalid key passed to crc32');
+    }
 
     return ((~crc) >>> 16) & 0x7FFF;
   };

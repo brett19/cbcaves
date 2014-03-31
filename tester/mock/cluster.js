@@ -62,8 +62,14 @@ Cluster.prototype.prepare = function(options, callback) {
   });
 };
 
-Cluster.prototype.destroy = function() {
-
+Cluster.prototype.destroy = function(callback) {
+  var maybeCallback = utils.waitForAllCallback(callback);
+  var maybeFinish = maybeCallback();
+  for (var i = 0; i < this.nodes.length; ++i) {
+    var node = this.nodes[i];
+    node.destroy(maybeCallback());
+  }
+  maybeFinish();
 };
 
 Cluster.prototype._addConfigListener = function(bucket, res) {

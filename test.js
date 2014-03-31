@@ -1,9 +1,11 @@
+"use strict";
+
 var CouchbaseClient = require('./lib/couchbase').Connection;
 
 require('buffer').INSPECT_MAX_BYTES = 100;
 
 var tst = new CouchbaseClient({
-  uri: ['localhost:8091'],
+  hosts: ['localhost:8091'],
   bucket: 'default'
 });
 
@@ -22,7 +24,8 @@ tst.incr('testkeyi', {initial: 33, offset: 2}, function(err, res) {
 tst.get('testkeya', function(err, res) {
   console.log('tst.get', err, res);
 
-  tst._config.markInvalid();
+  //tst._config.markInvalid();
+  tst.shutdown();
 });
 //*/
 

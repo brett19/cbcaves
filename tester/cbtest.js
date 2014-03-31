@@ -4,6 +4,7 @@ var domain = require('domain');
 var annotations = require('annotations');
 
 var MockCluster = require('./mock/cluster');
+var Harness = require('./harness');
 
 function parseTests(path, callback) {
   annotations.get(path, function(err, result) {
@@ -42,19 +43,30 @@ function parseTests(path, callback) {
 
 function runTest(fn, callback) {
   var mockServer = new MockCluster();
-  mockServer.prepare(function() {
-    var testDomain = domain.create();
 
-    testDomain.run(function() {
-      fn(mockServer, callback);
+  var H = new Harness();
+  H.srv = mockServer;
+
+  function destroyAndFinish() {
+    H.destroy(function() {
+      mockServer.destroy(function() {
+        callback();
+      });
     });
+  }
 
-    testDomain.on("error", function(error) {
-      console.error('TEST ERROR');
-      console.error(error.stack);
+  var testDomain = domain.create();
+  testDomain.run(function() {
+    mockServer.prepare(function() {
+      fn(H, destroyAndFinish);
     });
   });
-  mockServer.destroy();
+
+  testDomain.on("error", function(error) {
+    console.error('TEST ERROR');
+    console.error(error.stack);
+    destroyAndFinish();
+  });
 }
 
 function runTestFile(path, cli, srv, callback) {
@@ -74,7 +86,14 @@ function runTestFile(path, cli, srv, callback) {
       }
 
       var test = tests.shift();
-      runTest(myMod[test.funcName], executeNextTest);
+
+      var stime = new Date();
+      console.log('Starting test `' + test.name + '`');
+      runTest(myMod[test.funcName], function() {
+        var etime = new Date();
+        console.log('Completed test `' + test.name + '` in ' + (etime-stime) + 'ms');
+        executeNextTest();
+      });
     }
     executeNextTest();
   });
